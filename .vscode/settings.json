@@ -1,4 +1,0 @@
-{
-    "C_Cpp.clang_format_fallbackStyle": "{BasedOnStyle: Google, AllowShortIfStatementsOnASingleLine: false, ColumnLimit: 180, IndentWidth: 4, TabWidth: 4}",
-    "C_Cpp.clang_format_style": "{BasedOnStyle: Google, AllowShortIfStatementsOnASingleLine: false, ColumnLimit: 180, IndentWidth: 4, TabWidth: 4}"
-}
