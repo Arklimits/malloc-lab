@@ -64,12 +64,8 @@ team_t team = {
 
 static char *heap_listp;  // 처음에 사용할 가용블록 힙
 
-static int mm_init(void);
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
-static void *mm_malloc(size_t size);
-static void mm_free(void *ptr);
-static void *mm_realloc(void *ptr, size_t size);
 
 /*
  * mm_init - initialize the malloc package.
