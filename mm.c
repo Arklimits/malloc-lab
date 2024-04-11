@@ -43,6 +43,22 @@ team_t team = {
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
+/* 기본 상수 & 매크로 */
+#define WSIZE 4              // word size
+#define DSIZE 8              // double word size
+#define CHUNKSIZE (1 << 12)  // 힙 확장을 위한 기본 크기 (= 초기 빈 블록의 크기)
+
+#define MAX(x, y) (x > y ? x : y)
+
+#define PACK(size, alloc) (size | alloc)
+#define GET(p) (*(unsigned int *)(p))
+#define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))
+#define GET_SIZE(p) (GET(p) & ~0x7)
+#define GET_ALLOC(p) (GET(p) & 0x1)
+#define HDRP(bp) ((char *)(bp)-WSIZE)
+#define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))
+#define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))
+
 /*
  * mm_init - initialize the malloc package.
  */
