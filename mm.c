@@ -50,12 +50,12 @@ team_t team = {
 
 #define MAX(x, y) (x > y ? x : y)
 
-#define PACK(size, alloc) (size | alloc)  // size 와 alloc을 합쳐서 주소를 만드는 매크로 (sssss00a)
-#define GET_SIZE(p) (GET(p) & ~0x7)       // 주소 p에 있는 size get (& 11111000)
-#define GET_ALLOC(p) (GET(p) & 0x1)       // 주소 p에 있는 alloc get (& 00000001)
+#define PACK(size, alloc) (size | alloc)  // size 와 alloc을 합쳐서 block address 제작 (sssss00a)
+#define GET_SIZE(p) (GET(p) & ~0x7)       // address에 있는 size 획득 (& 11111000)
+#define GET_ALLOC(p) (GET(p) & 0x1)       // address에 있는 alloc 획득 (& 00000001)
 
-#define GET(p) (*(unsigned int *)(p))                             // 인자 p가 가리키는 block get
-#define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))  // 인자 p에 다음 block의 주소 put
+#define GET(p) (*(unsigned int *)(p))                             // 인자 p에 들어있는 block address 획득
+#define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))  // 인자 p에 다음 block address 할당
 
 #define HDRP(bp) ((char *)(bp)-WSIZE)                                  // Header는 block pointer의 Word Size만큼 앞에 위치
 #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)           // Footer는 헤더의 끝 지점부터 block의 사이즈 만큼 더하고 2*word만큼 앞에 위치
@@ -63,6 +63,13 @@ team_t team = {
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))    // 이전 block pointer 위치로 이동
 
 static char *heap_listp;  // 처음에 사용할 가용블록 힙
+
+static int mm_init(void);
+static void *extend_heap(size_t words);
+static void *coalesce(void *bp);
+static void *mm_malloc(size_t size);
+static void mm_free(void *ptr);
+static void *mm_realloc(void *ptr, size_t size);
 
 /*
  * mm_init - initialize the malloc package.
@@ -83,8 +90,8 @@ int mm_init(void) {
 }
 
 /*
-
-*/
+ *   새로운 힙 확장
+ */
 static void *extend_heap(size_t words) {
     char *bp;
     size_t size;
@@ -100,6 +107,41 @@ static void *extend_heap(size_t words) {
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1));  // Epilogue Header 이동
 
     return coalesce(bp);
+}
+
+/*
+ * 합체 함수
+ */
+void *coalesce(void *bp) {
+    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
+    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+    size_t size = GET_SIZE(HDRP(bp));
+
+    if (prev_alloc && next_alloc) {  // CASE 1: 이전과 다음 블록이 모두 할당되어 있다.
+        return bp;
+    }
+
+    else if (prev_alloc && !next_alloc) {  // CASE 2: 이전 블록은 할당상태, 다음블록은 가용상태다.
+        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+        PUT(HDRP(bp), PACK(size, 0));
+        PUT(HDRP(bp), PACK(size, 0));
+    }
+
+    else if (!prev_alloc && next_alloc) {  // CASE 3: 이전 블록은 가용상태, 다음 블록은 할당상태다.
+        size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+        PUT(FTRP(bp), PACK(size, 0));
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+        bp = PREV_BLKP(bp);  // idea: 순서 바꾸면 조금 더 빨라질듯
+    }
+
+    else {  // CASE 4: 이전과 다음 블록 모두 가용상태다.
+        size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
+        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+        bp = PREV_BLKP(bp);  // idea: 순서 바꾸면 조금 더 빨라질듯
+    }
+
+    return bp;
 }
 
 /*
