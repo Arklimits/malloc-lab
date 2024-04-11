@@ -66,7 +66,7 @@ static char *heap_listp;  // 처음에 사용할 가용블록 힙
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
-static void *find_fit(size_t *asize);
+static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 /*
  * mm_init - initialize the malloc package.
@@ -149,14 +149,28 @@ void *find_fit(size_t asize) {
     for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))  // 힙 포인터(root 역할)에서 출발해서 Epilogue Header를 만날때 까지 작동
         if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))     // block pointer 가 가용하고 내 asize보다 size가 크면
             return bp;                                                 // 사용할 수 있다
+
+    return NULL;
 }
 
 /*
  * 할당 함수
  */
-void place(void *bp, size_t asize) { 
+void place(void *bp, size_t asize) {
+    size_t current_size = GET_SIZE(HDRP(bp));
+    size_t diff_size = current_size - asize;
 
- }
+    if (diff_size >= (2 * DSIZE)) {
+        PUT(HDRP(bp), PACK(asize, 1));                 // 현재 블록의 asize 만큼 사용했다고 헤더에 표시
+        PUT(FTRP(bp), PACK(asize, 1));                 // 푸터에도 표시
+        bp = NEXT_BLKP(bp);                            // block pointer 뒤로 이동
+        PUT(HDRP(bp), PACK(diff_size, 0));  // 남은 블록은 가용하다하다라는걸 다음 헤더에 표시
+        PUT(FTRP(bp), PACK(diff_size, 0));  // 푸터에도 표시
+        return;
+    }
+    PUT(HDRP(bp), PACK(current_size, 1));  // 위의 조건이 아니면 asize가 들어갔을 때 나머지는 다 패딩해야 함
+    PUT(FTRP(bp), PACK(current_size, 1));
+}
 
 /*
  * mm_malloc - Allocate a block by incrementing the brk pointer.
