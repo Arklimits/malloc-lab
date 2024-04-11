@@ -38,19 +38,15 @@ team_t team = {
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
 
-<<<<<<< HEAD
 /* rounds up to the nearest multiple of ALIGNMENT */
-=======
-/* rounds up to the nearest multiple/* rounds up to the nearest multiple of ALIGNMENT */
->>>>>>> 399479d (recover ALIGNMENT)
 #define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~0x7)
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
 /* 기본 상수 & 매크로 */
-#define WSIZE 4              // word size
-#define DSIZE 8              // double word size
-#define CHUNKSIZE (1 << 12)  // 힙 확장을 위한 기본 크기 (= 초기 빈 블록의 크기)
+#define WSIZE 4
+#define DSIZE 8
+#define CHUNKSIZE (1 << 12)
 
 #define MAX(x, y) (x > y ? x : y)
 
