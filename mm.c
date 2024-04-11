@@ -43,18 +43,19 @@ team_t team = {
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
-/* 기본 상수 & 매크로 */
-#define WSIZE 4
-#define DSIZE 8
-#define CHUNKSIZE (1 << 12)
+/* 가용 리스트 조작을 위한 기본 상수 & 매크로 */
+#define WSIZE 4              // word size
+#define DSIZE 8              // double word size
+#define CHUNKSIZE (1 << 12)  // 초기 가용 블록과 힙 확장을 위한 기본 Chunk size
 
 #define MAX(x, y) (x > y ? x : y)
 
 #define PACK(size, alloc) (size | alloc)
-#define GET(p) (*(unsigned int *)(p))
-#define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))
-#define GET_SIZE(p) (GET(p) & ~0x7)
-#define GET_ALLOC(p) (GET(p) & 0x1)
+
+#define GET(p) (*(unsigned int *)(p))                             // 인자 p가 참조하는 워드를 읽어서 리턴
+#define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))  // 인자 p가 가리키는 워드에 val 삽입
+#define GET_SIZE(p) (GET(p) & ~0x7)                               // 주소 p에 있는 헤더 또는 풋터의 size 리턴
+#define GET_ALLOC(p) (GET(p) & 0x1)                               // 주소 p에 있는 헤더 또는 풋터의 할당 비트 리턴
 #define HDRP(bp) ((char *)(bp)-WSIZE)
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))
@@ -62,7 +63,22 @@ team_t team = {
 /*
  * mm_init - initialize the malloc package.
  */
-int mm_init(void) { return 0; }
+int mm_init(void) {
+    char *heap_listp = mem_sbrk(4 * WSIZE);
+
+    if (heap_listp == (void *)-1)
+        return -1;
+
+    PUT(heap_listp, 0);
+    PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1));
+    PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1));
+    PUT(heap_listp + (3 * WSIZE), PACK(0, 1));
+
+    if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
+        return -1;
+
+    return 0;
+}
 
 /*
  * mm_malloc - Allocate a block by incrementing the brk pointer.
