@@ -31,9 +31,9 @@ team_t team = {
     /* First member's email address */
     "zaqokm2@gmail.com",
     /* Second member's full name (leave blank if none) */
-    "Seong Ho Lee",
+    "",
     /* Second member's email address (leave blank if none) */
-    "lsh6451217@gmail.com"};
+    ""};
 
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
@@ -48,11 +48,11 @@ team_t team = {
 #define DSIZE 8              // double word size
 #define CHUNKSIZE (1 << 12)  // 초기 가용 블록과 힙 확장을 위한 기본 Chunk size (4kb)
 
-#define MAX(x, y) (x > y ? x : y)
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
 
-#define PACK(size, alloc) (size | alloc)  // size 와 alloc을 합쳐서 block address 제작 (sssss00a)
-#define GET_SIZE(p) (GET(p) & ~0x7)       // address에 있는 size 획득 (& 11111000)
-#define GET_ALLOC(p) (GET(p) & 0x1)       // address에 있는 alloc 획득 (& 00000001)
+#define PACK(size, alloc) ((size) | (alloc))  // size 와 alloc을 합쳐서 block address 제작 (sssss00a)
+#define GET_SIZE(p) (GET(p) & ~0x7)           // address에 있는 size 획득 (& 11111000)
+#define GET_ALLOC(p) (GET(p) & 0x1)           // address에 있는 alloc 획득 (& 00000001)
 
 #define GET(p) (*(unsigned int *)(p))                             // 인자 p에 들어있는 block address 획득
 #define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))  // 인자 p에 다음 block address 할당
@@ -74,6 +74,7 @@ static void place(void *bp, size_t asize);
 int mm_init(void) {
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)  // old brk에서 4*Word Size만큼 늘려서 mem brk로 늘림
         return -1;
+
     PUT(heap_listp, 0);                             // Padding 생성
     PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1));  // Prologue header 생성
     PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1));  // Prologue Footer 생성
@@ -121,7 +122,7 @@ void *coalesce(void *bp) {
     else if (prev_alloc && !next_alloc) {  // CASE 2: 이전 블록은 할당상태, 다음블록은 가용상태다.
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
-        PUT(HDRP(bp), PACK(size, 0));
+        PUT(FTRP(bp), PACK(size, 0));
     }
 
     else if (!prev_alloc && next_alloc) {  // CASE 3: 이전 블록은 가용상태, 다음 블록은 할당상태다.
@@ -156,19 +157,20 @@ void *find_fit(size_t asize) {
 /*
  * 할당 함수
  */
-void place(void *bp, size_t asize) {
+void place(void *bp, size_t asize) {  // 요청한 블록을 가용 블록의 시작 부분에 배치, 나머지 부분의 크기가 최소 블록크기와 같거나 큰 경우에만 분할하는 함수.
     size_t current_size = GET_SIZE(HDRP(bp));
     size_t diff_size = current_size - asize;
 
     if (diff_size >= (2 * DSIZE)) {
-        PUT(HDRP(bp), PACK(asize, 1));                 // 현재 블록의 asize 만큼 사용했다고 헤더에 표시
-        PUT(FTRP(bp), PACK(asize, 1));                 // 푸터에도 표시
-        bp = NEXT_BLKP(bp);                            // block pointer 뒤로 이동
-        PUT(HDRP(bp), PACK(diff_size, 0));  // 남은 블록은 가용하다하다라는걸 다음 헤더에 표시
-        PUT(FTRP(bp), PACK(diff_size, 0));  // 푸터에도 표시
+        PUT(HDRP(bp), PACK(asize, 1));
+        PUT(FTRP(bp), PACK(asize, 1));
+        bp = NEXT_BLKP(bp);
+        PUT(HDRP(bp), PACK(diff_size, 0));
+        PUT(FTRP(bp), PACK(diff_size, 0));
         return;
     }
-    PUT(HDRP(bp), PACK(current_size, 1));  // 위의 조건이 아니면 asize가 들어갔을 때 나머지는 다 패딩해야 함
+
+    PUT(HDRP(bp), PACK(current_size, 1));
     PUT(FTRP(bp), PACK(current_size, 1));
 }
 
@@ -197,6 +199,7 @@ void *mm_malloc(size_t size) {
     extendsize = MAX(asize, CHUNKSIZE);
     if ((bp = extend_heap(extendsize / WSIZE)) == NULL)
         return NULL;
+
     place(bp, asize);
     return bp;
 }
