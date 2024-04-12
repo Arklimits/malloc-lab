@@ -108,35 +108,35 @@ static void *extend_heap(size_t words) {
 }
 
 /*
- * 합체 함수
+ * 블록을 연결하는 함수
  */
 void *coalesce(void *bp) {
-    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
-    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
-    size_t size = GET_SIZE(HDRP(bp));
+    size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));  // 이전 블록의 가용 여부
+    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));  // 다음 블록의 가용 여부
+    size_t size = GET_SIZE(HDRP(bp));                    // 현재 블록의 크기
 
     if (prev_alloc && next_alloc) {  // CASE 1: 이전과 다음 블록이 모두 할당되어 있다.
-        return bp;
+        return bp;                   // free에서 호출하는 경우밖에 없으므로 이미 현재블록은 가용하므로 리턴.
     }
 
-    else if (prev_alloc && !next_alloc) {  // CASE 2: 이전 블록은 할당상태, 다음블록은 가용상태다.
-        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+    else if (prev_alloc && !next_alloc) {       // CASE 2: 이전 블록은 할당상태, 다음블록은 가용상태
+        size += GET_SIZE(HDRP(NEXT_BLKP(bp)));  // 현재 블록을 다음 블록까지 포함한 상태로 변경
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
     }
 
-    else if (!prev_alloc && next_alloc) {  // CASE 3: 이전 블록은 가용상태, 다음 블록은 할당상태다.
-        size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+    else if (!prev_alloc && next_alloc) {       // CASE 3: 이전 블록은 가용상태, 다음 블록은 할당상태
+        size += GET_SIZE(HDRP(PREV_BLKP(bp)));  // 현재 블록을 이전 블록까지 포함한 상태로 변경
         PUT(FTRP(bp), PACK(size, 0));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);  // idea: 순서 바꾸면 조금 더 빨라질듯
+        bp = PREV_BLKP(bp);
+        PUT(HDRP(bp), PACK(size, 0));  // 이전 블록의 헤더 이동
     }
 
-    else {  // CASE 4: 이전과 다음 블록 모두 가용상태다.
-        size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
-        PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+    else {                                                                      // CASE 4: 이전과 다음 블록 모두 가용상태다.
+        size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));  // 현재 블록을 이전 블록부터 다음 블록까지 포함한 상태로 변경
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
-        bp = PREV_BLKP(bp);  // idea: 순서 바꾸면 조금 더 빨라질듯
+        bp = PREV_BLKP(bp);
+        PUT(HDRP(bp), PACK(size, 0));
     }
 
     return bp;
