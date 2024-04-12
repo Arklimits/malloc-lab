@@ -219,10 +219,10 @@ void mm_free(void *ptr) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
-    if (ptr == NULL)
+    if (ptr == NULL) // pointer가 비어 있으면 malloc 함수와 동일하게 동작
         return mm_malloc(size);
 
-    if (size <= 0) {
+    if (size <= 0) { // memory size가 0이면 메모리 free
         mm_free(ptr);
         return NULL;
     }
@@ -233,8 +233,8 @@ void *mm_realloc(void *ptr, size_t size) {
 
     newptr = mm_malloc(size);
     copySize = GET_SIZE(HDRP(ptr));
-    
-    if (size < copySize)
+
+    if (size < copySize) // 현재 memory보다 크면 memory를 늘려서 새로 할당
         copySize = size;
 
     memcpy(newptr, oldptr, copySize);
