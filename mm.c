@@ -96,7 +96,7 @@ static void *extend_heap(size_t words) {
 
     /* 요청한 word의 크기를 인접 2워드의 배수(8바이트)로 반올림한다 */
     size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
-    if ((long)(bp = mem_sbrk(size)) == -1)
+    if ((int)(bp = mem_sbrk(size)) == -1)
         return NULL;
 
     /* 메모리 시스템으로부터 추가적인 힙 공간을 요청한다 사용중이지 않으므로 alloc = 0 */
@@ -219,23 +219,21 @@ void mm_free(void *ptr) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
+    if (ptr == NULL)
+        return mm_malloc(size);
+
     if (size <= 0) {
         mm_free(ptr);
         return NULL;
     }
-
-    if (ptr == NULL)
-        return mm_malloc(size);
 
     void *oldptr = ptr;
     void *newptr;
     size_t copySize;
 
     newptr = mm_malloc(size);
-    if (newptr == NULL)
-        return NULL;
-
     copySize = GET_SIZE(HDRP(ptr));
+    
     if (size < copySize)
         copySize = size;
 
