@@ -54,8 +54,8 @@ team_t team = {
 #define GET_SIZE(p) (GET(p) & ~0x7)           // address에 있는 size 획득 (& 11111000)
 #define GET_ALLOC(p) (GET(p) & 0x1)           // address에 있는 alloc 획득 (& 00000001)
 
-#define GET(p) (*(unsigned int *)(p))                             // 인자 p에 들어있는 block address 획득
-#define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))  // 인자 p에 다음 block address 할당
+#define GET(p) (*(unsigned long *)(p))                             // 인자 p에 들어있는 block address 획득
+#define PUT(p, val) (*(unsigned long *)(p) = (unsigned long)(val))  // 인자 p에 다음 block address 할당
 
 #define HDRP(bp) ((char *)(bp)-WSIZE)                                  // header는 block pointer의 Word Size만큼 앞에 위치
 #define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)           // footer는 헤더의 끝 지점부터 block의 사이즈 만큼 더하고 2*word만큼 앞에 위치
@@ -131,7 +131,7 @@ static void *extend_heap(size_t words) {
     size_t size;
 
     size = words * DSIZE;
-    if ((int)(bp = mem_sbrk(size)) == -1)
+    if ((long)(bp = mem_sbrk(size)) == -1)
         return NULL;
 
     /* 메모리 시스템으로부터 추가적인 힙 공간을 요청한다 사용중이지 않으므로 alloc = 0 */
@@ -203,17 +203,17 @@ void place(void *bp, size_t asize) {  // 요청한 블록을 가용 블록의 �
 
     if (diff_size >= (2 * DSIZE)) {
 
-        printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야할 size 크기 %d\n", (unsigned int *)bp, GET_SIZE(HDRP(bp)), asize);
+        // printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야 할 size 크기 %d\n", (int *)bp, GET_SIZE(HDRP(bp)), asize);
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
         bp = NEXT_BLKP(bp);
-        printf("free block 위치 %p | 나머지 block 크기 %d\n", (unsigned int *)NEXT_BLKP(bp), diff_size);
+        // printf("free block 위치 %p | 나머지 block 크기 %d\n", (int *)NEXT_BLKP(bp), diff_size);
         PUT(HDRP(bp), PACK(diff_size, 0));
         PUT(FTRP(bp), PACK(diff_size, 0));
         addfreeblock(bp);  // 분할된 블록을 가용 리스트에 추가
         return;
     }
-    printf("block 위치 %p | padding으로 넣은 size 크기 %d\n", (unsigned int *)bp, current_size);
+    // printf("block 위치 %p | padding으로 넣은 size 크기 %d\n", (unsigned int *)bp, current_size);
     PUT(HDRP(bp), PACK(current_size, 1));
     PUT(FTRP(bp), PACK(current_size, 1));
 }
@@ -242,7 +242,7 @@ void *mm_malloc(size_t size) {
 
     extendsize = MAX(asize, CHUNKSIZE);
     bp = extend_heap(extendsize / DSIZE);
-    printf("사이즈 부족으로 Chuncksize %d 연장\n", extendsize);
+    // printf("사이즈 부족으로 Chuncksize %d 연장\n", extendsize);
     if (bp == NULL)
         return NULL;
 
