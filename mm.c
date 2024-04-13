@@ -57,12 +57,21 @@ team_t team = {
 #define GET(p) (*(unsigned int *)(p))                             // 인자 p에 들어있는 block address 획득
 #define PUT(p, val) (*(unsigned int *)(p) = (unsigned int)(val))  // 인자 p에 다음 block address 할당
 
-#define HDRP(bp) ((char *)(bp)-WSIZE)                                  // Header는 block pointer의 Word Size만큼 앞에 위치
-#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)           // Footer는 헤더의 끝 지점부터 block의 사이즈 만큼 더하고 2*word만큼 앞에 위치
+#define HDRP(bp) ((char *)(bp)-WSIZE)                                  // header는 block pointer의 Word Size만큼 앞에 위치
+#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)           // footer는 헤더의 끝 지점부터 block의 사이즈 만큼 더하고 2*word만큼 앞에 위치
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))  // 다음 block pointer 위치로 이동
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))    // 이전 block pointer 위치로 이동
 
-static char *heap_listp;  // 처음에 사용할 가용블록 힙
+/* 명시적 가용 리스트(Explicit Free List) Flag */
+#define EXPLICIT
+
+#ifdef EXPLICIT
+#define PRED(bp) (*(void **)(bp))          // predecessor
+#define SUCC(bp) (*(void **)(bp + WSIZE))  // successor
+static char *free_listp;                   // 가용리스트의 첫번째 블록 포인터
+#endif
+
+static char *heap_listp;  // 처음에 사용할 가용블록 힙 리스트 포인터
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
@@ -73,16 +82,31 @@ static void place(void *bp, size_t asize);
  */
 int mm_init(void) {
     if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)  // old brk에서 4*Word Size만큼 늘려서 mem brk로 늘림
-        return -1;
+        return -1;                                         // 메모리가 꽉찼다면 -1 반환
+#ifdef EXPLICIT
+
+    PUT(heap_listp, 0);                          // Padding 생성
+    PUT(heap_listp + (1 * WSIZE), PACK(16, 1));  // Prologue header 생성
+    PUT(heap_listp + (2 * WSIZE), NULL);         // Prologue PREC Pointer NULL로 초기화
+    PUT(heap_listp + (3 * WSIZE), NULL);         // Prologue SUCC Pointer NULL로 초기화
+    PUT(heap_listp + (4 * WSIZE), PACK(16, 1));  // Prologue Footer 생성
+    PUT(heap_listp + (5 * WSIZE), PACK(0, 1));   // Epilogue Header 생성
+
+    free_listp = heap_listp + DSIZE;
+
+#else
 
     PUT(heap_listp, 0);                             // Padding 생성
     PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1));  // Prologue header 생성
     PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1));  // Prologue Footer 생성
     PUT(heap_listp + (3 * WSIZE), PACK(0, 1));      // Epilogue Header 생성
-    heap_listp += (2 * WSIZE);                      // 포인터를 Prologue Header 뒤로 이동
+
+    heap_listp += DSIZE;  // 포인터를 Prologue Header 뒤로 이동
+
+#endif
 
     if (extend_heap(CHUNKSIZE / WSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 늘려줌
-        return -1;
+        return -1;                               // memory가 꽉찼다면 -1 반환
 
     return 0;
 }
@@ -147,9 +171,16 @@ void *coalesce(void *bp) {
  */
 void *find_fit(size_t asize) {
     void *bp;
+
+#ifdef EXPLICIT
+    for (bp = free_listp; GET_ALLOC(HDRP(bp)) != 1; bp = SUCC(bp))
+        if (GET_SIZE(HDRP(bp)) >= asize)
+            return bp;
+#else
     for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp))  // 힙 포인터(root 역할)에서 출발해서 Epilogue Header를 만날때 까지 작동
         if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))     // block pointer 가 가용하고 내 asize보다 size가 크면
             return bp;                                                 // 사용할 수 있다
+#endif
 
     return NULL;
 }
@@ -219,10 +250,10 @@ void mm_free(void *ptr) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *ptr, size_t size) {
-    if (ptr == NULL) // pointer가 비어 있으면 malloc 함수와 동일하게 동작
+    if (ptr == NULL)  // pointer가 비어 있으면 malloc 함수와 동일하게 동작
         return mm_malloc(size);
 
-    if (size <= 0) { // memory size가 0이면 메모리 free
+    if (size <= 0) {  // memory size가 0이면 메모리 free
         mm_free(ptr);
         return NULL;
     }
@@ -234,7 +265,7 @@ void *mm_realloc(void *ptr, size_t size) {
     newptr = mm_malloc(size);
     copySize = GET_SIZE(HDRP(ptr));
 
-    if (size < copySize) // 현재 memory보다 크면 memory를 늘려서 새로 할당
+    if (size < copySize)  // 현재 memory보다 크면 memory를 늘려서 새로 할당
         copySize = size;
 
     memcpy(newptr, oldptr, copySize);
