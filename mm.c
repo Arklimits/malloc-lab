@@ -102,23 +102,23 @@ int mm_init(void) {
 /*
  * 가용 블록끼리 연결
  */
-void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
-    NEXT_FREE(bp) = free_listp;     // 현재 블록의 SUCC를 free_listp에 연결하고
+void addfreeblock(void *bp) {    // Stack형 구조로 만들었기 때문에
+    NEXT_FREE(bp) = free_listp;  // 현재 블록의 NEXT를 free_listp가 가리키던 블록에 연결하고
     PREV_FREE(bp) = NULL;
-    PREV_FREE(free_listp) = bp;  // 이전에 만들어진 블록의 PRED를 현재 블록에 연결
-    free_listp = bp;
+    PREV_FREE(free_listp) = bp;  // 이전에 만들어진 블록의 PREV를 현재 블록에 연결
+    free_listp = bp;             // free_listp가 나를 가리키게 함
 }
 
 /*
  * 가용 블록 삭제
  */
 void removefreeblock(void *bp) {
-    if (bp == free_listp) {     // 첫번째 블록을 삭제 경우
-        PREV_FREE(NEXT_FREE(bp)) = NULL;  // 다음 블록의 PREV_FREE 초기화 후
-        free_listp = NEXT_FREE(bp);  // 첫 블록 pointer를 다음 블록으로 연결
+    if (bp == free_listp) {               // 첫번째 블록을 삭제 할 경우
+        PREV_FREE(NEXT_FREE(bp)) = NULL;  // 다음 블록의 PREV 초기화
+        free_listp = NEXT_FREE(bp);       // free_listp를 다음 블록으로 연결
     } else {
-        NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);  // 이전 블록의 NEXT_FREE
-        PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);
+        NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);  // 이전 블록의 NEXT를 다음 블록으로 연결
+        PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);  // 다음 블록의 PREV를 이전 블록으로 연결
     }
 }
 
@@ -130,7 +130,9 @@ static void *extend_heap(size_t words) {
     size_t size;
 
     size = words * DSIZE;
-    if ((long)(bp = mem_sbrk(size)) == -1)
+    bp = mem_sbrk(size);
+    
+    if ((long)bp == -1)
         return NULL;
 
     /* 메모리 시스템으로부터 추가적인 힙 공간을 요청한다 사용중이지 않으므로 alloc = 0 */
@@ -186,7 +188,7 @@ void *find_fit(size_t asize) {
     void *bp;
 
     for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
-        if (GET_SIZE(HDRP(bp)) >= asize)                           // 현재 블록이 필요한 size보다 크면 반환
+        if (GET_SIZE(HDRP(bp)) >= asize)                                // 현재 블록이 필요한 size보다 크면 반환
             return bp;
     return NULL;
 }
