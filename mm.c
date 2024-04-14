@@ -47,7 +47,6 @@ team_t team = {
 #define WSIZE 4              // word size
 #define DSIZE 8              // double word size
 #define CHUNKSIZE (1 << 12)  // 초기 가용 블록과 힙 확장을 위한 기본 Chunk size (4kb)
-#define SEGSIZE (12)         // Segregatred
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -66,15 +65,23 @@ team_t team = {
 #define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
 #define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
 
-static char *heap_listp;  // 처음에 사용할 가용블록 힙 리스트 포인터
-static char *free_listp;  // 가용 리스트의 첫번째 블록 포인터
+/* for Implicit List */
+static char *heap_listp;  // 힙 리스트 포인터
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
+
+/* for Explicit List */
+#define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
+#define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
+
+static char *free_listp;  // 가용 리스트의 첫번째 블록 포인터
+
 static void addfreeblock(void *bp);
 static void removefreeblock(void *bp);
+
 /*
  * mm_init - initialize the malloc package.
  */
