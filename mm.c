@@ -62,7 +62,7 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))  // 다음 block pointer 위치로 이동
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))    // 이전 block pointer 위치로 이동
 
-static char *heap_listp;  // 처음에 사용할 가용블록 힙 리스트 포인터
+static char *heap_listp;  // 힙 리스트 포인터
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
