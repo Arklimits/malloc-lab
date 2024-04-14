@@ -47,6 +47,7 @@ team_t team = {
 #define WSIZE 4              // word size
 #define DSIZE 8              // double word size
 #define CHUNKSIZE (1 << 12)  // 초기 가용 블록과 힙 확장을 위한 기본 Chunk size (4kb)
+#define SEGSIZE (12)         // Segregatred
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -54,7 +55,7 @@ team_t team = {
 #define GET_SIZE(p) (GET(p) & ~0x7)           // address에 있는 size 획득 (& 11111000)
 #define GET_ALLOC(p) (GET(p) & 0x1)           // address에 있는 alloc 획득 (& 00000001)
 
-#define GET(p) (*(unsigned long *)(p))                             // 인자 p에 들어있는 block address 획득
+#define GET(p) (*(unsigned long *)(p))                              // 인자 p에 들어있는 block address 획득
 #define PUT(p, val) (*(unsigned long *)(p) = (unsigned long)(val))  // 인자 p에 다음 block address 할당
 
 #define HDRP(bp) ((char *)(bp)-WSIZE)                                  // header는 block pointer의 Word Size만큼 앞에 위치
@@ -62,25 +63,18 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))  // 다음 block pointer 위치로 이동
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))    // 이전 block pointer 위치로 이동
 
-/* 명시적 가용 리스트(Explicit Free List) Flag */
-#define EXPLICIT
-
-#ifdef EXPLICIT
-#define PRED(bp) (*(void **)(bp))          // predecessor
-#define SUCC(bp) (*(void **)(bp + WSIZE))  // successor
-
-static char *free_listp;  // 가용리스트의 첫번째 블록 포인터
-void addfreeblock(void *bp);
-void removefreeblock(void *bp);
-#endif
+#define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
+#define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
 
 static char *heap_listp;  // 처음에 사용할 가용블록 힙 리스트 포인터
+static char *free_listp;  // 가용 리스트의 첫번째 블록 포인터
 
 static void *extend_heap(size_t words);
 static void *coalesce(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
-
+static void addfreeblock(void *bp);
+static void removefreeblock(void *bp);
 /*
  * mm_init - initialize the malloc package.
  */
@@ -93,7 +87,7 @@ int mm_init(void) {
     PUT(heap_listp, 0);                          // Padding 생성
     PUT(heap_listp + (1 * WSIZE), PACK(16, 1));  // Prologue header 생성
     PUT(heap_listp + (2 * WSIZE), NULL);         // Prologue PREC Pointer NULL로 초기화
-    PUT(heap_listp + (3 * WSIZE), NULL);         // Prologue SUCC Pointer NULL로 초기화
+    PUT(heap_listp + (3 * WSIZE), NULL);         // Prologue NEXT_FREE Pointer NULL로 초기화
     PUT(heap_listp + (4 * WSIZE), PACK(16, 1));  // Prologue Footer 생성
     PUT(heap_listp + (5 * WSIZE), PACK(0, 1));   // Epilogue Header 생성
 
@@ -105,21 +99,26 @@ int mm_init(void) {
     return 0;
 }
 
-
-void addfreeblock(void *bp) {
-    SUCC(bp) = free_listp;
-    PRED(bp) = NULL;
-    PRED(free_listp) = bp;
+/*
+ * 가용 블록끼리 연결
+ */
+void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
+    NEXT_FREE(bp) = free_listp;     // 현재 블록의 Next block을 free_listp에 연결하고
+    PREV_FREE(bp) = NULL;
+    PREV_FREE(free_listp) = bp;  // 이전에 만들어진 블록의 PRED를 현재 블록에 연결
     free_listp = bp;
 }
 
+/*
+ * 가용 블록 삭제
+ */
 void removefreeblock(void *bp) {
     if (bp == free_listp) {     // 첫번째 블록을 삭제 경우
-        PRED(SUCC(bp)) = NULL;  // 이전 블록의 SUCC 초기화 후
-        free_listp = SUCC(bp);  // 첫 블록 pointer를 현재 블록으로 변경
+        PREV_FREE(NEXT_FREE(bp)) = NULL;  // 다음 블록의 PREV_FREE 초기화 후
+        free_listp = NEXT_FREE(bp);  // 첫 블록 pointer를 다음 블록으로 연결
     } else {
-        SUCC(PRED(bp)) = SUCC(bp);  // 이전 블록의 SUCC
-        PRED(SUCC(bp)) = PRED(bp);
+        NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);  // 이전 블록의 NEXT_FREE
+        PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);
     }
 }
 
@@ -152,15 +151,15 @@ void *coalesce(void *bp) {
 
     // CASE 1: 이전과 다음 블록이 모두 할당되어 있다면 PASS
 
-    if (prev_alloc && !next_alloc) {  // CASE 2: 이전 블록은 할당상태, 다음블록은 가용상태
-        removefreeblock(NEXT_BLKP(bp));  // 다음 블록을 가용 리스트에서 제거
+    if (prev_alloc && !next_alloc) {            // CASE 2: 이전 블록은 할당상태, 다음블록은 가용상태
+        removefreeblock(NEXT_BLKP(bp));         // 다음 블록을 가용 리스트에서 제거
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));  // 현재 블록을 다음 블록까지 포함한 상태로 변경
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
     }
 
-    else if (!prev_alloc && next_alloc) {  // CASE 3: 이전 블록은 가용상태, 다음 블록은 할당상태
-        removefreeblock(PREV_BLKP(bp));  // 이전 블록을 가용리스트에서 제거
+    else if (!prev_alloc && next_alloc) {       // CASE 3: 이전 블록은 가용상태, 다음 블록은 할당상태
+        removefreeblock(PREV_BLKP(bp));         // 이전 블록을 가용리스트에서 제거
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));  // 현재 블록을 이전 블록까지 포함한 상태로 변경
         PUT(FTRP(bp), PACK(size, 0));
         bp = PREV_BLKP(bp);
@@ -168,7 +167,7 @@ void *coalesce(void *bp) {
     }
 
     else if (!prev_alloc && !next_alloc) {  // CASE 4: 이전과 다음 블록 모두 가용상태다.
-        removefreeblock(NEXT_BLKP(bp));  // 이전과 다음 블록을 가용리스트에서 제거
+        removefreeblock(NEXT_BLKP(bp));     // 이전과 다음 블록을 가용리스트에서 제거
         removefreeblock(PREV_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));  // 현재 블록을 이전 블록부터 다음 블록까지 포함한 상태로 변경
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
@@ -186,7 +185,7 @@ void *coalesce(void *bp) {
 void *find_fit(size_t asize) {
     void *bp;
 
-    for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = SUCC(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
+    for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
         if (GET_SIZE(HDRP(bp)) >= asize)                           // 현재 블록이 필요한 size보다 크면 반환
             return bp;
     return NULL;
@@ -202,7 +201,6 @@ void place(void *bp, size_t asize) {  // 요청한 블록을 가용 블록의 �
     removefreeblock(bp);  // 원래 블록을 가용 리스트에서 제거
 
     if (diff_size >= (2 * DSIZE)) {
-
         // printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야 할 size 크기 %d\n", (int *)bp, GET_SIZE(HDRP(bp)), asize);
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
