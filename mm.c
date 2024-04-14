@@ -192,13 +192,24 @@ void *coalesce(void *bp) {
  * 가용한 address를 찾는 함수
  */
 void *find_fit(size_t asize) {
+    void *best = NULL;
     void *bp;
 
-    for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
-        if (GET_SIZE(HDRP(bp)) >= asize)                                // 현재 블록이 필요한 size보다 크면 반환
-            return bp;
-    return NULL;
+    for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))
+        if (GET_SIZE(HDRP(bp)) >= asize)
+            if (best == NULL) {
+                best = bp;
+                break;
+            }
+
+    for (; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))
+        if (GET_SIZE(HDRP(bp)) >= asize)
+            if ((long)(GET_SIZE(HDRP(bp)) < (long)(GET_SIZE(HDRP(best)))))
+                best = bp;
+
+    return best;
 }
+
 
 /*
  * 할당 함수
