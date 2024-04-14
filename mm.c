@@ -47,7 +47,6 @@ team_t team = {
 #define WSIZE 4              // word size
 #define DSIZE 8              // double word size
 #define CHUNKSIZE (1 << 12)  // 초기 가용 블록과 힙 확장을 위한 기본 Chunk size (4kb)
-#define SEGSIZE (12)         // Segregatred
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
