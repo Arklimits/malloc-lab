@@ -235,7 +235,7 @@ void place(void *bp, size_t asize) {  // 요청한 블록을 가용 블록의 �
 
     removefreeblock(bp);  // 원래 블록을 가용 리스트에서 제거
 
-    if (diff_size >= (2 * DSIZE)) {
+    if (diff_size >= (3 * DSIZE)) {
         // printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야 할 size 크기 %d\n", (int *)bp, GET_SIZE(HDRP(bp)), asize);
         PUT(HDRP(bp), PACK(asize, 1));
         PUT(FTRP(bp), PACK(asize, 1));
@@ -264,7 +264,7 @@ void *mm_malloc(size_t size) {
         return NULL;
 
     if (size <= DSIZE)
-        asize = 2 * DSIZE;
+        asize = 3 * DSIZE;
     else
         asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
 
