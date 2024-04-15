@@ -81,6 +81,7 @@ static void removefreeblock(void *bp);
 
 /* for Segregated List */
 #define SEG_SIZE (12)
+#define START(class) (*(void **)((char *)(heap_listp) + (WSIZE * class)))
 
 static int getclass(size_t size);
 
@@ -88,7 +89,7 @@ static int getclass(size_t size);
  * mm_init - initialize the malloc package.
  */
 int mm_init(void) {
-    heap_listp = mem_sbrk(6 * WSIZE);  // old brk에서 6*Word Size만큼 늘려서 mem brk로 늘림
+    heap_listp = mem_sbrk((SEG_SIZE + 4) * WSIZE);  // 16 Word + SEG 리스트 만큼 늘리기
 
     if (heap_listp == (void *)-1)
         return -1;  // 메모리가 꽉찼다면 -1 반환
