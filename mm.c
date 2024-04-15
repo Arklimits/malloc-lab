@@ -126,7 +126,7 @@ void removefreeblock(void *bp) {
     int class = getclass(GET_SIZE(HDRP(bp)));
 
     if (bp == START(class))            // 첫번째 블록을 삭제 할 경우
-        START(class) = NEXT_FREE(bp);  // free_listp를 다음 블록으로 연결
+        START(class) = NEXT_FREE(bp);  // class의 시작점을 다음 블록으로 연결
     else {
         NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);      // 이전 블록의 NEXT를 다음 블록으로 연결
         if (NEXT_FREE(bp) != NULL)                     // 다음 블록이 있을 경우에
@@ -304,19 +304,13 @@ void *mm_realloc(void *ptr, size_t size) {
 }
 
 int getclass(size_t size) {
-    if (size < 16) {  // size가 최소 16바이트 보다 작을 시 오류
-        return -1;
-    }
-
-    size_t class[SEG_SIZE];
-    class[0] = 16;
+    size_t class_size = 16;
 
     for (int i = 0; i < SEG_SIZE; i++) {
-        if (i > 0)
-            class[i] = class[i - 1] << 1;  // 클래스 size 검색
-        if (size <= class[i])
+        if (size <= class_size)
             return i;  // 클래스에 해당할 시 클래스 리턴
+        class_size <<= 1;   // class size 증가
     }
 
-    return SEG_SIZE - 1;  // size가 8192바이트 초과 시 마지막 클래스로 처리
+    return SEG_SIZE - 1;  // size 8192바이트 초과 시 마지막 클래스로 처리
 }
