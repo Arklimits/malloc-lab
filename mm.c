@@ -27,9 +27,9 @@ team_t team = {
     /* Team name */
     "Team 3",
     /* First member's full name */
-    "Jae Hyeok Jeung",
+    "Arklimits",
     /* First member's email address */
-    "zaqokm2@gmail.com",
+    "https://github.com/Arklimits/swjungle-malloc",
     /* Second member's full name (leave blank if none) */
     "",
     /* Second member's email address (leave blank if none) */
