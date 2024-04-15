@@ -27,9 +27,9 @@ team_t team = {
     /* Team name */
     "Team 3",
     /* First member's full name */
-    "Jae Hyeok Jeung",
+    "Arklimits",
     /* First member's email address */
-    "zaqokm2@gmail.com",
+    "https://github.com/Arklimits/swjungle-malloc",
     /* Second member's full name (leave blank if none) */
     "",
     /* Second member's email address (leave blank if none) */
@@ -62,10 +62,7 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))  // 다음 block pointer 위치로 이동
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))    // 이전 block pointer 위치로 이동
 
-#define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
-#define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
-
-/* for Implicit List */
+/* for Implicit List (common) */
 static char *heap_listp;  // 힙 리스트 포인터
 
 static void *extend_heap(size_t words);
@@ -77,10 +74,13 @@ static void place(void *bp, size_t asize);
 #define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
 #define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
 
-static char *free_listp;  // 가용 리스트의 첫번째 블록 포인터
-
 static void addfreeblock(void *bp);
 static void removefreeblock(void *bp);
+
+/* for Segregated List */
+#define SEG_SIZE (12)
+
+static int getclass(size_t size);
 
 /*
  * mm_init - initialize the malloc package.
@@ -98,7 +98,7 @@ int mm_init(void) {
     PUT(heap_listp + (4 * WSIZE), PACK(16, 1));  // Prologue Footer 생성
     PUT(heap_listp + (5 * WSIZE), PACK(0, 1));   // Epilogue Header 생성
 
-    free_listp = heap_listp + DSIZE;
+    heap_listp += DSIZE;
 
     if (extend_heap(CHUNKSIZE / DSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 늘려줌
         return -1;                               // memory가 꽉찼다면 -1 반환
@@ -110,19 +110,19 @@ int mm_init(void) {
  * 가용 블록끼리 연결
  */
 void addfreeblock(void *bp) {    // Stack형 구조로 만들었기 때문에
-    NEXT_FREE(bp) = free_listp;  // 현재 블록의 NEXT를 free_listp가 가리키던 블록에 연결하고
+    NEXT_FREE(bp) = heap_listp;  // 현재 블록의 NEXT를 free_listp가 가리키던 블록에 연결하고
     PREV_FREE(bp) = NULL;
-    PREV_FREE(free_listp) = bp;  // 이전에 만들어진 블록의 PREV를 현재 블록에 연결
-    free_listp = bp;             // free_listp가 나를 가리키게 함
+    PREV_FREE(heap_listp) = bp;  // 이전에 만들어진 블록의 PREV를 현재 블록에 연결
+    heap_listp = bp;             // free_listp가 나를 가리키게 함
 }
 
 /*
  * 가용 블록 삭제
  */
 void removefreeblock(void *bp) {
-    if (bp == free_listp) {               // 첫번째 블록을 삭제 할 경우
+    if (bp == heap_listp) {               // 첫번째 블록을 삭제 할 경우
         PREV_FREE(NEXT_FREE(bp)) = NULL;  // 다음 블록의 PREV 초기화
-        free_listp = NEXT_FREE(bp);       // free_listp를 다음 블록으로 연결
+        heap_listp = NEXT_FREE(bp);       // free_listp를 다음 블록으로 연결
     } else {
         NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);  // 이전 블록의 NEXT를 다음 블록으로 연결
         PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);  // 다음 블록의 PREV를 이전 블록으로 연결
@@ -194,7 +194,7 @@ void *coalesce(void *bp) {
 void *find_fit(size_t asize) {
     void *bp;
 
-    for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
+    for (bp = heap_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
         if (GET_SIZE(HDRP(bp)) >= asize)                                // 현재 블록이 필요한 size보다 크면 반환
             return bp;
     return NULL;
