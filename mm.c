@@ -93,12 +93,11 @@ int mm_init(void) {
     if (heap_listp == (void *)-1)
         return -1;  // 메모리가 꽉찼다면 -1 반환
 
-    PUT(heap_listp, 0);                          // Padding 생성
-    PUT(heap_listp + (1 * WSIZE), PACK(16, 1));  // Prologue header 생성
-    PUT(heap_listp + (2 * WSIZE), NULL);         // Prologue PREC Pointer NULL로 초기화
-    PUT(heap_listp + (3 * WSIZE), NULL);         // Prologue NEXT_FREE Pointer NULL로 초기화
-    PUT(heap_listp + (4 * WSIZE), PACK(16, 1));  // Prologue Footer 생성
-    PUT(heap_listp + (5 * WSIZE), PACK(0, 1));   // Epilogue Header 생성
+    PUT(heap_listp, 0);                                                            // Padding 생성
+    PUT(heap_listp + (1 * WSIZE), PACK((SEG_SIZE + 2) * WSIZE, 1));                // Prologue header 생성
+    for (int i = 0; i < SEG_SIZE; i++) PUT(heap_listp + ((2 + i) * WSIZE), NULL);  // SEG Free List 생성
+    PUT(heap_listp + ((SEG_SIZE + 2) * WSIZE), PACK((SEG_SIZE + 2) * WSIZE, 1));   // Prologue Footer 생성
+    PUT(heap_listp + ((SEG_SIZE + 3) * WSIZE), PACK(0, 1));                        // Epilogue Header 생성
 
     free_listp = heap_listp + DSIZE;
 
