@@ -114,8 +114,9 @@ void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
 
     NEXT_FREE(bp) = START(class);  // 현재 블록의 NEXT에 기존의 시작 포인터를 삽입
     PREV_FREE(bp) = NULL;
-    PREV_FREE(START(class)) = bp;  // 기존 블록의 PREV를 현재 블록에 연결
-    START(class) = bp;             // class의 시작점이 나를 가리키게 함
+    if (START(class) != NULL)
+        PREV_FREE(START(class)) = bp;  // 기존 블록의 PREV를 현재 블록에 연결
+    START(class) = bp;                 // class의 시작점이 나를 가리키게 함
 }
 
 /*
@@ -124,12 +125,12 @@ void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
 void removefreeblock(void *bp) {
     int class = getclass(GET_SIZE(HDRP(bp)));
 
-    if (bp == START(class)) {             // 첫번째 블록을 삭제 할 경우
-        PREV_FREE(NEXT_FREE(bp)) = NULL;  // 다음 블록의 PREV 초기화
-        START(class) = NEXT_FREE(bp);     // free_listp를 다음 블록으로 연결
-    } else {
-        NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);  // 이전 블록의 NEXT를 다음 블록으로 연결
-        PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);  // 다음 블록의 PREV를 이전 블록으로 연결
+    if (bp == START(class))            // 첫번째 블록을 삭제 할 경우
+        START(class) = NEXT_FREE(bp);  // free_listp를 다음 블록으로 연결
+    else {
+        NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);      // 이전 블록의 NEXT를 다음 블록으로 연결
+        if (NEXT_FREE(bp) != NULL)                     // 다음 블록이 있을 경우에
+            PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);  // 다음 블록의 PREV를 이전 블록으로 연결
     }
 }
 
@@ -199,9 +200,9 @@ void *find_fit(size_t asize) {
     int class;
     void *bp;
 
-    for (class = getclass(asize); class < SEG_SIZE; class++)
-        for (bp = START(class); GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
-            if (GET_SIZE(HDRP(bp)) >= asize)                                  // 현재 블록이 필요한 size보다 크면 반환
+    for (class = getclass(asize); class < SEG_SIZE; class ++)
+        for (bp = START(class); bp != NULL; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
+            if (GET_SIZE(HDRP(bp)) >= asize)                     // 현재 블록이 필요한 size보다 크면 반환
                 return bp;
 
     return NULL;
@@ -303,8 +304,9 @@ void *mm_realloc(void *ptr, size_t size) {
 }
 
 int getclass(size_t size) {
-    if (size < 16)  // size가 최소 16바이트 보다 작을 시 오류
+    if (size < 16) {  // size가 최소 16바이트 보다 작을 시 오류
         return -1;
+    }
 
     size_t class[SEG_SIZE];
     class[0] = 16;
