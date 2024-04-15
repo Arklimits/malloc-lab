@@ -74,8 +74,6 @@ static void place(void *bp, size_t asize);
 #define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
 #define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
 
-static char *free_listp;  // 가용 리스트의 첫번째 블록 포인터
-
 static void addfreeblock(void *bp);
 static void removefreeblock(void *bp);
 
@@ -96,11 +94,11 @@ int mm_init(void) {
 
     PUT(heap_listp, 0);                                                            // Padding 생성
     PUT(heap_listp + (1 * WSIZE), PACK((SEG_SIZE + 2) * WSIZE, 1));                // Prologue header 생성
-    for (int i = 0; i < SEG_SIZE; i++) PUT(heap_listp + ((2 + i) * WSIZE), NULL);  // SEG Free List 생성
+    for (int i = 0; i < SEG_SIZE; i++) PUT(heap_listp + ((2 + i) * WSIZE), NULL);  // Seg Free List 생성
     PUT(heap_listp + ((SEG_SIZE + 2) * WSIZE), PACK((SEG_SIZE + 2) * WSIZE, 1));   // Prologue Footer 생성
     PUT(heap_listp + ((SEG_SIZE + 3) * WSIZE), PACK(0, 1));                        // Epilogue Header 생성
 
-    free_listp = heap_listp + DSIZE;
+    heap_listp += DSIZE;
 
     if (extend_heap(CHUNKSIZE / DSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 늘려줌
         return -1;                               // memory가 꽉찼다면 -1 반환
@@ -111,20 +109,24 @@ int mm_init(void) {
 /*
  * 가용 블록끼리 연결
  */
-void addfreeblock(void *bp) {    // Stack형 구조로 만들었기 때문에
-    NEXT_FREE(bp) = free_listp;  // 현재 블록의 NEXT를 free_listp가 가리키던 블록에 연결하고
+void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
+    int class = getclass(GET_SIZE(HDRP(bp)));
+
+    NEXT_FREE(bp) = START(class);  // 현재 블록의 NEXT에 기존의 시작 포인터를 삽입
     PREV_FREE(bp) = NULL;
-    PREV_FREE(free_listp) = bp;  // 이전에 만들어진 블록의 PREV를 현재 블록에 연결
-    free_listp = bp;             // free_listp가 나를 가리키게 함
+    PREV_FREE(START(class)) = bp;  // 기존 블록의 PREV를 현재 블록에 연결
+    START(class) = bp;             // class의 시작점이 나를 가리키게 함
 }
 
 /*
  * 가용 블록 삭제
  */
 void removefreeblock(void *bp) {
-    if (bp == free_listp) {               // 첫번째 블록을 삭제 할 경우
+    int class = getclass(GET_SIZE(HDRP(bp)));
+
+    if (bp == START(class)) {             // 첫번째 블록을 삭제 할 경우
         PREV_FREE(NEXT_FREE(bp)) = NULL;  // 다음 블록의 PREV 초기화
-        free_listp = NEXT_FREE(bp);       // free_listp를 다음 블록으로 연결
+        START(class) = NEXT_FREE(bp);     // free_listp를 다음 블록으로 연결
     } else {
         NEXT_FREE(PREV_FREE(bp)) = NEXT_FREE(bp);  // 이전 블록의 NEXT를 다음 블록으로 연결
         PREV_FREE(NEXT_FREE(bp)) = PREV_FREE(bp);  // 다음 블록의 PREV를 이전 블록으로 연결
@@ -196,7 +198,7 @@ void *coalesce(void *bp) {
 void *find_fit(size_t asize) {
     void *bp;
 
-    for (bp = free_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
+    for (bp = heap_listp; GET_ALLOC(HDRP(bp)) < 1; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
         if (GET_SIZE(HDRP(bp)) >= asize)                                // 현재 블록이 필요한 size보다 크면 반환
             return bp;
     return NULL;
