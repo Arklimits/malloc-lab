@@ -199,13 +199,31 @@ void *coalesce(void *bp) {
 void *find_fit(size_t asize) {
     int class;
     void *bp;
+    void *best = NULL;
 
-    for (class = getclass(asize); class < SEG_SIZE; class ++)
-        for (bp = START(class); bp != NULL; bp = NEXT_FREE(bp))  // 가용 리스트 포인터에서 출발해서 Eplilogue Header를 만날 때 까지 작동
-            if (GET_SIZE(HDRP(bp)) >= asize)                     // 현재 블록이 필요한 size보다 크면 반환
-                return bp;
+    for (class = getclass(asize); class < SEG_SIZE; class ++) {
+        for (bp = START(class); bp != NULL; bp = NEXT_FREE(bp))
+            if (GET_SIZE(HDRP(bp)) >= asize) {
+                if (GET_SIZE(HDRP(bp)) == asize)
+                    return bp;
 
-    return NULL;
+                best = bp;
+                break;
+            }
+
+        for (; bp != NULL; bp = NEXT_FREE(bp))
+            if (GET_SIZE(HDRP(bp)) >= asize) {
+                if (GET_SIZE(HDRP(bp)) == asize)
+                    return bp;
+
+                if ((long)(GET_SIZE(HDRP(bp)) < (long)(GET_SIZE(HDRP(best)))))
+                    best = bp;
+            }
+        if (best != NULL)
+            break;
+    }
+
+    return best;
 }
 
 /*
@@ -308,8 +326,8 @@ int getclass(size_t size) {
 
     for (int i = 0; i < SEG_SIZE; i++) {
         if (size <= class_size)
-            return i;  // 클래스에 해당할 시 클래스 리턴
-        class_size <<= 1;   // class size 증가
+            return i;      // 클래스에 해당할 시 클래스 리턴
+        class_size <<= 1;  // class size 증가
     }
 
     return SEG_SIZE - 1;  // size 8192바이트 초과 시 마지막 클래스로 처리
