@@ -62,9 +62,6 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp)-WSIZE)))  // 다음 block pointer 위치로 이동
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))    // 이전 block pointer 위치로 이동
 
-#define PREV_FREE(bp) (*(void **)(bp))          // Predecessor 대신 알아보기 편하게 PREV_FREE로 사용
-#define NEXT_FREE(bp) (*(void **)(bp + WSIZE))  // Successor 대신 알아보기 편하게 NEXT_FREE로 사용
-
 /* for Implicit List */
 static char *heap_listp;  // 힙 리스트 포인터
 
