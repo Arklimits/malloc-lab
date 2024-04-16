@@ -240,7 +240,7 @@ void *mm_realloc(void *ptr, size_t size) {
     newptr = mm_malloc(size);
     copySize = GET_SIZE(HDRP(ptr));
 
-    if (size < copySize)  // 현재 memory보다 크면 memory를 늘려서 새로 할당
+    if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
         copySize = size;
 
     memcpy(newptr, oldptr, copySize);
