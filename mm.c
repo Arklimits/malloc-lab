@@ -306,18 +306,14 @@ void *mm_realloc(void *ptr, size_t size) {
         return NULL;
     }
 
-    void *oldptr = ptr;
-    void *newptr;
-    size_t copySize;
-
-    newptr = mm_malloc(size);
-    copySize = GET_SIZE(HDRP(ptr));
+    void *newptr = mm_malloc(size);
+    size_t copySize = GET_SIZE(HDRP(ptr)) - DSIZE;  // 기존 ptr에서 header, footer를 뺀 크기
 
     if (size < copySize)  // 현재 memory보다 크면 memory를 늘려서 새로 할당
         copySize = size;
 
-    memcpy(newptr, oldptr, copySize);
-    mm_free(oldptr);
+    memcpy(newptr, ptr, copySize);
+    mm_free(ptr);
     return newptr;
 }
 
