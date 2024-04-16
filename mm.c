@@ -100,8 +100,8 @@ int mm_init(void) {
 
     heap_listp += DSIZE;
 
-    if (extend_heap(CHUNKSIZE / DSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 늘려줌
-        return -1;                               // memory가 꽉찼다면 -1 반환
+    // if (extend_heap(CHUNKSIZE / DSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 늘려줌
+    //     return -1;                               // memory가 꽉찼다면 -1 반환
 
     return 0;
 }
@@ -273,8 +273,8 @@ void *mm_malloc(size_t size) {
         return bp;
     }
 
-    extendsize = MAX(asize, CHUNKSIZE);
-    bp = extend_heap(extendsize / DSIZE);
+    // extendsize = MAX(asize, CHUNKSIZE);
+    bp = extend_heap(asize / DSIZE);
     // printf("사이즈 부족으로 Chuncksize %d 연장\n", extendsize);
     if (bp == NULL)
         return NULL;
