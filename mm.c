@@ -196,18 +196,18 @@ void *coalesce(void *bp) {
 /*
  * 가용한 address를 찾는 함수
  */
-void *find_fit(size_t asize) {
+void *find_fit(size_t asize) {  // Best-Fit 적용
     int class;
     void *bp;
     void *best = NULL;
 
-    for (class = getclass(asize); class < SEG_SIZE; class ++) {
+    for (class = getclass(asize); class < SEG_SIZE; class ++) {  // 클래스 내에서 찾다가 넣을 수 있는 가용 블록이 없으면 다음 클래스에서 탐색
         for (bp = START(class); bp != NULL; bp = NEXT_FREE(bp))
             if (GET_SIZE(HDRP(bp)) >= asize) {
-                if (GET_SIZE(HDRP(bp)) == asize)
+                if (GET_SIZE(HDRP(bp)) == asize)  // 딱 맞는 사이즈가 있을 경우 더이상 탐색하지 않고 bp 반환
                     return bp;
 
-                best = bp;
+                best = bp;  // best에 일단 들어갈 수 있는 bp 넣고 다시 탐색 (if문 수행을 줄이기 위해 for문 분할)
                 break;
             }
 
@@ -219,7 +219,7 @@ void *find_fit(size_t asize) {
                 if ((long)(GET_SIZE(HDRP(bp)) < (long)(GET_SIZE(HDRP(best)))))
                     best = bp;
             }
-        if (best != NULL)
+        if (best != NULL)  // class에서 best를 이미 할당했을 경우 다른 class에서 탐색하지 않고 탈출
             break;
     }
 
@@ -307,9 +307,9 @@ void *mm_realloc(void *ptr, size_t size) {
     }
 
     void *newptr = mm_malloc(size);
-    size_t copySize = GET_SIZE(HDRP(ptr)) - DSIZE;  // 기존 ptr에서 header, footer를 뺀 크기
+    size_t copySize = GET_SIZE(HDRP(ptr));
 
-    if (size < copySize)  // 현재 memory보다 크면 memory를 늘려서 새로 할당
+    if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
         copySize = size;
 
     memcpy(newptr, ptr, copySize);
