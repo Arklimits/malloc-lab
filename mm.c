@@ -368,7 +368,7 @@ void *mm_realloc(void *bp, size_t size) {
         memmove(bp, NEXT_BLKP(bp), asize);                             // 기존 메모리를 현재 블록으로 이동시키고
 
         return replace(bp, asize, curr_prev_next_size);
-    } /*** Info : 나를 제외하고 앞뒤 둘다 가용인 경우는 test case에 존재하지 않는다 (어떤 코드를 넣어도 영향이 없음을 확인) ***/
+    } /*** Info : 자신을 제외하고 앞뒤 둘다 가용인 경우는 test case에는 존재하지 않는다 (어떤 코드를 넣어도 영향이 없음을 확인) ***/
 
     if (!next_alloc && curr_next_size >= asize) {  // 다음 블록이 할당 중이 아니고 다음 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
         removefreeblock(NEXT_BLKP(bp));            // 다음 블록을 가용 리스트에서 제거하고
