@@ -263,10 +263,10 @@ void *mm_malloc(size_t size) {
     if (size == 0)
         return NULL;
 
-    if (size <= DSIZE)
+    if (size <= DSIZE) // 최소 size만큼 만들거나
         asize = 2 * DSIZE;
     else
-        asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
+        asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE); // 8의 배수로 올림 처리
 
     if ((bp = find_fit(asize)) != NULL) {
         place(bp, asize);
@@ -307,6 +307,11 @@ void *mm_realloc(void *bp, size_t size) {
         return NULL;
     }
 
+    size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
+
+    if (size <= copySize)
+        return bp;
+
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t current_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
 
@@ -318,7 +323,6 @@ void *mm_realloc(void *bp, size_t size) {
         return bp;
     } else {
         void *newptr = mm_malloc(size);
-        size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
 
         if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
             copySize = size;
