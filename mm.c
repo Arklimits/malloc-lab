@@ -371,25 +371,26 @@ void *mm_realloc(void *bp, size_t size) {
     } /*** Info : 자신을 제외하고 앞뒤 둘다 가용인 경우는 test case에는 존재하지 않는다 (어떤 코드를 넣어도 영향이 없음을 확인) ***/
 
     if (!next_alloc && curr_next_size >= asize) {  // 다음 블록이 할당 중이 아니고 다음 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
-        removefreeblock(NEXT_BLKP(bp));            // 다음 블록을 가용 리스트에서 제거하고
+        removefreeblock(NEXT_BLKP(bp));            // 다음 블록을 가용 리스트에서 제거
 
-        return replace(bp, asize, curr_next_size);
+        return replace(bp, asize, curr_next_size); 
     }
 
     if (!prev_alloc && curr_prev_size >= asize) {  // 이전 블록이 할당 중이 아니고 이전 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
         removefreeblock(PREV_BLKP(bp));            // 이전 블록을 가용 리스트에서 제거하고
         bp = PREV_BLKP(bp);                        // 이전 블록으로 이동
-        memmove(bp, NEXT_BLKP(bp), asize);         // 기존 메모리를 현재 블록으로 이동시키고
+        memmove(bp, NEXT_BLKP(bp), asize);         // 기존 메모리를 현재 블록으로 이동
 
         return replace(bp, asize, curr_prev_size);
     }
 
-    void *newptr = mm_malloc(size);
-    if (newptr == NULL)
+    void *newptr = mm_malloc(size); // 해당 사항이 없을 경우 새로운 블록을 할당
+
+    if (newptr == NULL) // 할당에 실패했을 경우 반환
         return NULL;
 
     memcpy(newptr, bp, copySize);
-    mm_free(bp);
+    mm_free(bp); //기존 블록 해제
 
     return newptr;
 }
