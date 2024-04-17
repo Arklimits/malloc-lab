@@ -310,16 +310,24 @@ void *mm_realloc(void *bp, size_t size) {
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t current_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
 
-    void *newptr = mm_malloc(size);
-    size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
+    if (!next_alloc && current_size >= size) {
+        removefreeblock(NEXT_BLKP(bp));  // 원래 블록을 가용 리스트에서 제거
+        PUT(HDRP(bp), PACK(current_size, 1));
+        PUT(FTRP(bp), PACK(current_size, 1));
 
-    if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
-        copySize = size;
+        return bp;
+    } else {
+        void *newptr = mm_malloc(size);
+        size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
 
-    memcpy(newptr, bp, copySize);
-    mm_free(bp);
+        if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
+            copySize = size;
 
-    return newptr;
+        memcpy(newptr, bp, copySize);
+        mm_free(bp);
+
+        return newptr;
+    }
 }
 
 int getclass(size_t size) {
