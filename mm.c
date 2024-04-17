@@ -83,7 +83,7 @@ static void removefreeblock(void *bp);
 
 static int getclass(size_t size);
 
-/* for Realloc */
+/* for Optimize Realloc */
 static void *replace(void *bp, size_t size, size_t current_size);
 static void *replace_slice(void *bp, size_t size, size_t current_size);
 
@@ -344,7 +344,7 @@ void *mm_realloc(void *bp, size_t size) {
         return NULL;
     }
 
-    if (size <= DSIZE)
+    if (size <= DSIZE)  // malloc 할 때 처럼 블록의 size를 정형화
         asize = 2 * DSIZE;
     else
         asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
