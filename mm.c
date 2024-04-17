@@ -83,6 +83,9 @@ static void removefreeblock(void *bp);
 
 static int getclass(size_t size);
 
+/* for Realloc */
+static void *replace(void *bp, size_t size, size_t current_size);
+
 /*
  * mm_init - initialize the malloc package.
  */
@@ -107,7 +110,7 @@ int mm_init(void) {
 }
 
 /*
- * 가용 블록끼리 연결
+ * addfreeblock - 가용 블록끼리 연결
  */
 void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
     int class = getclass(GET_SIZE(HDRP(bp)));
@@ -120,7 +123,7 @@ void addfreeblock(void *bp) {  // Stack형 구조로 만들었기 때문에
 }
 
 /*
- * 가용 블록 삭제
+ * removefreeblock - 가용 블록 삭제
  */
 void removefreeblock(void *bp) {
     int class = getclass(GET_SIZE(HDRP(bp)));
@@ -135,13 +138,13 @@ void removefreeblock(void *bp) {
 }
 
 /*
- * 힙 확장
+ * extend_heap - 힙 확장
  */
 static void *extend_heap(size_t words) {
     char *bp;
     size_t size;
 
-    size = words * DSIZE;
+    size = words * WSIZE;
     bp = mem_sbrk(size);
 
     if ((long)bp == -1)
@@ -156,7 +159,7 @@ static void *extend_heap(size_t words) {
 }
 
 /*
- * 블록을 연결하는 함수
+ * coalesce - 블록을 연결하는 함수
  */
 void *coalesce(void *bp) {
     size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));  // 이전 블록의 가용 여부
@@ -227,26 +230,25 @@ void *find_fit(size_t asize) {  // Best-Fit 적용
 }
 
 /*
- * 할당 함수
+ * place - 할당 및 분할 함수
  */
-void place(void *bp, size_t asize) {  // 요청한 블록을 가용 블록의 시작 부분에 배치, 나머지 부분의 크기가 최소 블록크기와 같거나 큰 경우에만 분할하는 함수.
+void place(void *bp, size_t asize) {
     size_t current_size = GET_SIZE(HDRP(bp));
     size_t diff_size = current_size - asize;
 
     removefreeblock(bp);  // 원래 블록을 가용 리스트에서 제거
 
-    if (diff_size >= (2 * DSIZE)) {
-        // printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야 할 size 크기 %d\n", (int *)bp, GET_SIZE(HDRP(bp)), asize);
-        PUT(HDRP(bp), PACK(asize, 1));
+    if (diff_size >= (2 * DSIZE)) {     // 사용하고 남은 용량이 최소 사이즈 (16)보다 클 때
+        PUT(HDRP(bp), PACK(asize, 1));  // 필요한 용량만큼 사용
         PUT(FTRP(bp), PACK(asize, 1));
         bp = NEXT_BLKP(bp);
-        // printf("free block 위치 %p | 나머지 block 크기 %d\n", (int *)NEXT_BLKP(bp), diff_size);
-        PUT(HDRP(bp), PACK(diff_size, 0));
+
+        PUT(HDRP(bp), PACK(diff_size, 0));  // 나머지 용량을 다시 가용 블록으로 할당
         PUT(FTRP(bp), PACK(diff_size, 0));
         addfreeblock(bp);  // 분할된 블록을 가용 리스트에 추가
         return;
     }
-    // printf("block 위치 %p | padding으로 넣은 size 크기 %d\n", (unsigned int *)bp, current_size);
+
     PUT(HDRP(bp), PACK(current_size, 1));
     PUT(FTRP(bp), PACK(current_size, 1));
 }
@@ -274,7 +276,7 @@ void *mm_malloc(size_t size) {
     }
 
     // extendsize = MAX(asize, CHUNKSIZE);
-    bp = extend_heap(asize / DSIZE);  // 최적화를 위해 chunksize가 아닌 필요한 만큼 확장
+    bp = extend_heap(asize / WSIZE);  // 최적화를 위해 chunksize가 아닌 필요한 만큼 확장
     // printf("사이즈 부족으로 Chuncksize %d 연장\n", asize);
     if (bp == NULL)
         return NULL;
@@ -296,6 +298,26 @@ void mm_free(void *bp) {
 }
 
 /*
+ * realloc_place - 재할당을 위한 place 함수
+ */
+void *replace(void *bp, size_t size, size_t current_size) {
+    // if ((current_size - size) >= (2 * DSIZE)) {    // 사용하고 남은 용량이 최소 사이즈 (16)보다 클 때
+    //     PUT(HDRP(bp), PACK(size, 1));  // 필요한 용량만큼 사용
+    //     PUT(FTRP(bp), PACK(size, 1));
+    //     PUT(HDRP(NEXT_BLKP(bp)), PACK((current_size - size), 0));  // 나머지 용량을 다시 가용 블록으로 할당
+    //     PUT(FTRP(NEXT_BLKP(bp)), PACK((current_size - size), 0));
+    //     addfreeblock(NEXT_BLKP(bp));  // 분할된 블록을 가용 리스트에 추가
+
+    //     return bp;
+    // }
+
+    PUT(HDRP(bp), PACK(current_size, 1));
+    PUT(FTRP(bp), PACK(current_size, 1));
+
+    return bp;
+}
+
+/*
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *bp, size_t size) {
@@ -313,39 +335,66 @@ void *mm_realloc(void *bp, size_t size) {
         return bp;
 
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
-    size_t current_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
+    size_t prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(bp)));
+    size_t curr_next_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
+    size_t curr_prev_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(PREV_BLKP(bp)));
+    size_t curr_prev_next_size = GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
 
-    if (!next_alloc && current_size >= size) {
-        removefreeblock(NEXT_BLKP(bp));  // 다음 블록을 가용 리스트에서 제거
-        // PUT(HDRP(bp), PACK(current_size, 1));
-        // PUT(FTRP(bp), PACK(current_size, 1));
-        if (diff_size >= (2 * DSIZE)) {
-            // printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야 할 size 크기 %d\n", (int *)bp, GET_SIZE(HDRP(bp)), asize);
-            PUT(HDRP(bp), PACK(asize, 1));
-            PUT(FTRP(bp), PACK(asize, 1));
-            bp = NEXT_BLKP(bp);
-            // printf("free block 위치 %p | 나머지 block 크기 %d\n", (int *)NEXT_BLKP(bp), diff_size);
-            PUT(HDRP(bp), PACK(diff_size, 0));
-            PUT(FTRP(bp), PACK(diff_size, 0));
-            addfreeblock(bp);  // 분할된 블록을 가용 리스트에 추가
-            return bp;
+    if (!prev_alloc && !next_alloc && curr_prev_next_size >= size) {  // 이전 블록 및 다음 블록이 할당 중이 아니고 전체 용량이 realloc되어야 하는 size보다 클 때
+        removefreeblock(NEXT_BLKP(bp));                               // 다음 블록을 가용 리스트에서 제거
+        removefreeblock(PREV_BLKP(bp));                               // 이전 블록을 가용 리스트에서 제거
+        bp = PREV_BLKP(bp);                                           // 이전 블록으로 이동
+        memmove(bp, NEXT_BLKP(bp), size);                             // 기존 메모리를 현재 블록으로 이동시키고
+
+        return replace(bp, size, curr_prev_next_size);
+    }
+
+    if (!next_alloc && curr_next_size >= size) {  // 다음 블록이 할당 중이 아니고 다음 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
+        removefreeblock(NEXT_BLKP(bp));           // 다음 블록을 가용 리스트에서 제거하고
+
+        if ((curr_next_size - size) >= (2 * DSIZE)) {  // 합친 블록의 size가 할당 후 16바이트 이상 남았을 때
+            PUT(HDRP(bp), PACK(size, 1));              // 필요한 용량만큼 사용
+            PUT(FTRP(bp), PACK(size, 1));
+            PUT(HDRP(NEXT_BLKP(bp)), PACK((curr_next_size - size), 0));  // 나머지 용량을 다시 가용 블록으로 할당
+            PUT(FTRP(NEXT_BLKP(bp)), PACK((curr_next_size - size), 0));
+            addfreeblock(NEXT_BLKP(bp));  // 가용 블록 리스트에 추가
+
+            return bp;  // size가 변한 bp를 반환
         }
-        // printf("block 위치 %p | padding으로 넣은 size 크기 %d\n", (unsigned int *)bp, current_size);
-        PUT(HDRP(bp), PACK(current_size, 1));
-        PUT(FTRP(bp), PACK(current_size, 1));
+
+        PUT(HDRP(bp), PACK(curr_next_size, 1));  // 현재 블록과 다음 블록을 모두 사용
+        PUT(FTRP(bp), PACK(curr_next_size, 1));
 
         return bp;
-    } else {
-        void *newptr = mm_malloc(size);
-
-        if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
-            copySize = size;
-
-        memcpy(newptr, bp, copySize);
-        mm_free(bp);
-
-        return newptr;
     }
+
+    if (!prev_alloc && curr_prev_size >= size) {  // 이전 블록이 할당 중이 아니고 이전 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
+        removefreeblock(PREV_BLKP(bp));           // 이전 블록을 가용 리스트에서 제거하고
+        bp = PREV_BLKP(bp);                       // 이전 블록으로 이동
+        memmove(bp, NEXT_BLKP(bp), size);         // 기존 메모리를 현재 블록으로 이동시키고
+
+        if ((curr_prev_size - size) >= (2 * DSIZE)) {  // 합친 블록의 size가 할당 후 16바이트 이상 남았을 때
+            PUT(HDRP(bp), PACK(size, 1));              // 필요한 용량만큼 사용
+            PUT(FTRP(bp), PACK(size, 1));
+            PUT(HDRP(NEXT_BLKP(bp)), PACK((curr_prev_size - size), 0));  // 나머지 용량을 다시 가용 블록으로 할당
+            PUT(FTRP(NEXT_BLKP(bp)), PACK((curr_prev_size - size), 0));
+            addfreeblock(NEXT_BLKP(bp));  // 가용 블록 리스트에 추가
+
+            return bp;
+        }
+
+        PUT(HDRP(bp), PACK(curr_prev_size, 1));  // 현재 블록과 기존 블록을 모두 사용
+        PUT(FTRP(bp), PACK(curr_prev_size, 1));
+
+        return bp;
+    }
+
+    void *newptr = mm_malloc(size);
+
+    memcpy(newptr, bp, copySize);
+    mm_free(bp);
+
+    return newptr;
 }
 
 int getclass(size_t size) {
