@@ -263,10 +263,10 @@ void *mm_malloc(size_t size) {
     if (size == 0)
         return NULL;
 
-    if (size <= DSIZE) // 최소 size만큼 만들거나
+    if (size <= DSIZE)  // 최소 size만큼 만들거나
         asize = 2 * DSIZE;
     else
-        asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE); // 8의 배수로 올림 처리
+        asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);  // 8의 배수로 올림 처리
 
     if ((bp = find_fit(asize)) != NULL) {
         place(bp, asize);
@@ -316,7 +316,21 @@ void *mm_realloc(void *bp, size_t size) {
     size_t current_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
 
     if (!next_alloc && current_size >= size) {
-        removefreeblock(NEXT_BLKP(bp));  // 원래 블록을 가용 리스트에서 제거
+        removefreeblock(NEXT_BLKP(bp));  // 다음 블록을 가용 리스트에서 제거
+        // PUT(HDRP(bp), PACK(current_size, 1));
+        // PUT(FTRP(bp), PACK(current_size, 1));
+        if (diff_size >= (2 * DSIZE)) {
+            // printf("block 위치 %p | 들어갈 list의 크기 %d | 넣어야 할 size 크기 %d\n", (int *)bp, GET_SIZE(HDRP(bp)), asize);
+            PUT(HDRP(bp), PACK(asize, 1));
+            PUT(FTRP(bp), PACK(asize, 1));
+            bp = NEXT_BLKP(bp);
+            // printf("free block 위치 %p | 나머지 block 크기 %d\n", (int *)NEXT_BLKP(bp), diff_size);
+            PUT(HDRP(bp), PACK(diff_size, 0));
+            PUT(FTRP(bp), PACK(diff_size, 0));
+            addfreeblock(bp);  // 분할된 블록을 가용 리스트에 추가
+            return bp;
+        }
+        // printf("block 위치 %p | padding으로 넣은 size 크기 %d\n", (unsigned int *)bp, current_size);
         PUT(HDRP(bp), PACK(current_size, 1));
         PUT(FTRP(bp), PACK(current_size, 1));
 
