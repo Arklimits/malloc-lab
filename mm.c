@@ -50,9 +50,9 @@ team_t team = {
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
-#define PACK(size, alloc) ((size) | (alloc))  // size 와 alloc을 합쳐서 block address 제작 (sssss00a)
+#define PACK(size, alloc) ((size) | (alloc))  // size 와 alloc을 합쳐서 block address 제작 (sssssaaa)
 #define GET_SIZE(p) (GET(p) & ~0x7)           // address에 있는 size 획득 (& 11111000)
-#define GET_ALLOC(p) (GET(p) & 0x1)           // address에 있는 alloc 획득 (& 00000001)
+#define GET_ALLOC(p) (GET(p) & 0x1)           // address에 있는 alloc 획득 (& 00000111)
 
 #define GET(p) (*(unsigned long *)(p))                              // 인자 p에 들어있는 block address 획득
 #define PUT(p, val) (*(unsigned long *)(p) = (unsigned long)(val))  // 인자 p에 다음 block address 할당
@@ -78,7 +78,7 @@ static void addfreeblock(void *bp);
 static void removefreeblock(void *bp);
 
 /* for Segregated List */
-#define SEG_SIZE (12)
+#define SEG_SIZE (20)
 #define START(class) (*(void **)((char *)(heap_listp) + (WSIZE * class)))
 
 static int getclass(size_t size);
@@ -100,8 +100,8 @@ int mm_init(void) {
 
     heap_listp += DSIZE;
 
-    // if (extend_heap(CHUNKSIZE / DSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 늘려줌
-    //     return -1;                               // memory가 꽉찼다면 -1 반환
+    // if (extend_heap(CHUNKSIZE / DSIZE) == NULL)  // extend_heap을 통해 시작할 때 힙을 한번 Chunksize만큼 확장
+    //     return -1;                               // 최적화를 위해 allocate할 때만 힙을 확장하도록 변경
 
     return 0;
 }
@@ -257,7 +257,7 @@ void place(void *bp, size_t asize) {  // 요청한 블록을 가용 블록의 �
  */
 void *mm_malloc(size_t size) {
     size_t asize;
-    size_t extendsize;
+    // size_t extendsize;
     char *bp;
 
     if (size == 0)
@@ -274,8 +274,8 @@ void *mm_malloc(size_t size) {
     }
 
     // extendsize = MAX(asize, CHUNKSIZE);
-    bp = extend_heap(asize / DSIZE);
-    // printf("사이즈 부족으로 Chuncksize %d 연장\n", extendsize);
+    bp = extend_heap(asize / DSIZE);  // 최적화를 위해 chunksize가 아닌 필요한 만큼 확장
+    // printf("사이즈 부족으로 Chuncksize %d 연장\n", asize);
     if (bp == NULL)
         return NULL;
 
@@ -286,34 +286,39 @@ void *mm_malloc(size_t size) {
 /*
  * mm_free - Freeing a block does nothing.
  */
-void mm_free(void *ptr) {
-    size_t size = GET_SIZE(HDRP(ptr));
+void mm_free(void *bp) {
+    size_t size = GET_SIZE(HDRP(bp));
 
-    PUT(HDRP(ptr), PACK(size, 0));
-    PUT(FTRP(ptr), PACK(size, 0));
-    coalesce(ptr);
+    PUT(HDRP(bp), PACK(size, 0));
+    PUT(FTRP(bp), PACK(size, 0));
+
+    coalesce(bp);
 }
 
 /*
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
-void *mm_realloc(void *ptr, size_t size) {
-    if (ptr == NULL)  // pointer가 비어 있으면 malloc 함수와 동일하게 동작
+void *mm_realloc(void *bp, size_t size) {
+    if (bp == NULL)  // pointer가 비어 있으면 malloc 함수와 동일하게 동작
         return mm_malloc(size);
 
     if (size <= 0) {  // memory size가 0이면 메모리 free
-        mm_free(ptr);
+        mm_free(bp);
         return NULL;
     }
 
+    size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+    size_t current_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
+
     void *newptr = mm_malloc(size);
-    size_t copySize = GET_SIZE(HDRP(ptr));
+    size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
 
     if (size < copySize)  // 할당한 size가 기존의 copysize보다 작으면 size 만큼만 copy
         copySize = size;
 
-    memcpy(newptr, ptr, copySize);
-    mm_free(ptr);
+    memcpy(newptr, bp, copySize);
+    mm_free(bp);
+
     return newptr;
 }
 
