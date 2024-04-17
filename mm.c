@@ -85,6 +85,7 @@ static int getclass(size_t size);
 
 /* for Realloc */
 static void *replace(void *bp, size_t size, size_t current_size);
+static void *replace_slice(void *bp, size_t size, size_t current_size);
 
 /*
  * mm_init - initialize the malloc package.
@@ -298,18 +299,30 @@ void mm_free(void *bp) {
 }
 
 /*
- * realloc_place - 재할당을 위한 place 함수
+ * replace - 재할당을 위한 place 함수
  */
 void *replace(void *bp, size_t size, size_t current_size) {
-    // if ((current_size - size) >= (2 * DSIZE)) {    // 사용하고 남은 용량이 최소 사이즈 (16)보다 클 때
-    //     PUT(HDRP(bp), PACK(size, 1));  // 필요한 용량만큼 사용
-    //     PUT(FTRP(bp), PACK(size, 1));
-    //     PUT(HDRP(NEXT_BLKP(bp)), PACK((current_size - size), 0));  // 나머지 용량을 다시 가용 블록으로 할당
-    //     PUT(FTRP(NEXT_BLKP(bp)), PACK((current_size - size), 0));
-    //     addfreeblock(NEXT_BLKP(bp));  // 분할된 블록을 가용 리스트에 추가
+    PUT(HDRP(bp), PACK(current_size, 1));
+    PUT(FTRP(bp), PACK(current_size, 1));
 
-    //     return bp;
-    // }
+    return bp;
+}
+
+/*
+ * replace_slice - 남은 용량이 최소사이즈 보다 클 때 분할해서 할당하는 함수
+ */
+void *replace_slice(void *bp, size_t size, size_t current_size) {
+    size_t diff_size = current_size - size;
+
+    if (diff_size >= (2 * DSIZE)) {    // 사용하고 남은 용량이 최소 사이즈 (16)보다 클 때
+        PUT(HDRP(bp), PACK(size, 1));  // 필요한 용량만큼 사용
+        PUT(FTRP(bp), PACK(size, 1));
+        PUT(HDRP(NEXT_BLKP(bp)), PACK(diff_size, 0));  // 나머지 용량을 다시 가용 블록으로 할당
+        PUT(FTRP(NEXT_BLKP(bp)), PACK(diff_size, 0));
+        addfreeblock(NEXT_BLKP(bp));  // 분할된 블록을 가용 리스트에 추가
+
+        return bp;
+    }
 
     PUT(HDRP(bp), PACK(current_size, 1));
     PUT(FTRP(bp), PACK(current_size, 1));
@@ -331,14 +344,16 @@ void *mm_realloc(void *bp, size_t size) {
 
     size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
 
-    if (size <= copySize)
+    if (size <= copySize) {  // 재할당 사이즈가 기존 size보다 작으면 무시
         return bp;
+    }
 
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(bp)));
-    size_t curr_next_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
-    size_t curr_prev_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(PREV_BLKP(bp)));
-    size_t curr_prev_next_size = GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));
+
+    size_t curr_next_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));                                       // 현재 + 다음 블록 size
+    size_t curr_prev_size = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(PREV_BLKP(bp)));                                       // 현재 + 이전 블록 size
+    size_t curr_prev_next_size = GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(NEXT_BLKP(bp)));  // 이전 + 현재 + 다음 블록 size
 
     if (!prev_alloc && !next_alloc && curr_prev_next_size >= size) {  // 이전 블록 및 다음 블록이 할당 중이 아니고 전체 용량이 realloc되어야 하는 size보다 클 때
         removefreeblock(NEXT_BLKP(bp));                               // 다음 블록을 가용 리스트에서 제거
@@ -347,7 +362,7 @@ void *mm_realloc(void *bp, size_t size) {
         memmove(bp, NEXT_BLKP(bp), size);                             // 기존 메모리를 현재 블록으로 이동시키고
 
         return replace(bp, size, curr_prev_next_size);
-    }
+    } /*** Info : 앞뒤 둘다 가용인 경우는 test case에 존재하지 않는다 (어떤 코드를 넣어도 그냥 작동함) ***/
 
     if (!next_alloc && curr_next_size >= size) {  // 다음 블록이 할당 중이 아니고 다음 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
         removefreeblock(NEXT_BLKP(bp));           // 다음 블록을 가용 리스트에서 제거하고
