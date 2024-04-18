@@ -404,5 +404,5 @@ int getclass(size_t size) {
         class_size <<= 1;  // class size 증가
     }
 
-    return SEG_SIZE - 1;  // size가 65536바이트 초과 시 마지막 클래스로 처리
+    return SEG_SIZE - 1;  // size가 (2^SEGSIZE)바이트 초과 시 마지막 클래스로 처리
 }
