@@ -334,7 +334,10 @@ void *replace_slice(void *bp, size_t size, size_t current_size) {
  * mm_realloc - Implemented simply in terms of mm_malloc and mm_free
  */
 void *mm_realloc(void *bp, size_t size) {
-    size_t asize;
+    size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
+
+    if (size < copySize)  // 재할당 사이즈가 기존 size보다 작으면 무시
+        return bp;
 
     if (bp == NULL)  // pointer가 비어 있으면 malloc 함수와 동일하게 동작
         return mm_malloc(size);
@@ -344,15 +347,12 @@ void *mm_realloc(void *bp, size_t size) {
         return NULL;
     }
 
+    size_t asize;
+
     if (size <= DSIZE)  // malloc 할 때 처럼 블록의 size를 정형화
         asize = 2 * DSIZE;
     else
-        asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);
-
-    size_t copySize = GET_SIZE(HDRP(bp)) - DSIZE;  // only Payload
-
-    if (asize <= copySize)  // 재할당 사이즈가 기존 size보다 작으면 무시
-        return bp;
+        asize = DSIZE * ((size + (DSIZE) + (DSIZE - 1)) / DSIZE);    
 
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));  // 다음 블록의 가용상태
     size_t prev_alloc = GET_ALLOC(HDRP(PREV_BLKP(bp)));  // 이전 블록의 가용상태
@@ -373,7 +373,7 @@ void *mm_realloc(void *bp, size_t size) {
     if (!next_alloc && curr_next_size >= asize) {  // 다음 블록이 할당 중이 아니고 다음 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
         removefreeblock(NEXT_BLKP(bp));            // 다음 블록을 가용 리스트에서 제거
 
-        return replace(bp, asize, curr_next_size); 
+        return replace(bp, asize, curr_next_size);
     }
 
     if (!prev_alloc && curr_prev_size >= asize) {  // 이전 블록이 할당 중이 아니고 이전 블록 + 현재 블록의 용량이 realloc되어야 하는 size보다 클 때
@@ -384,13 +384,13 @@ void *mm_realloc(void *bp, size_t size) {
         return replace(bp, asize, curr_prev_size);
     }
 
-    void *newptr = mm_malloc(size); // 해당 사항이 없을 경우 새로운 블록을 할당
+    void *newptr = mm_malloc(size);  // 해당 사항이 없을 경우 새로운 블록을 할당
 
-    if (newptr == NULL) // 할당에 실패했을 경우 반환
+    if (newptr == NULL)  // 할당에 실패했을 경우 반환
         return NULL;
 
     memcpy(newptr, bp, copySize);
-    mm_free(bp); //기존 블록 해제
+    mm_free(bp);  // 기존 블록 해제
 
     return newptr;
 }
