@@ -395,6 +395,9 @@ void *mm_realloc(void *bp, size_t size) {
     return newptr;
 }
 
+/*
+ * getclass - class 할당 함수
+ */
 int getclass(size_t size) {
     size_t class_size = 16;
 
