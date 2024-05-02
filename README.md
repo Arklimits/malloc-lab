@@ -53,3 +53,5 @@ Perf index = 53 (util) + 40 (thru) = 93/100
 ./mdriver -f /traces/short1-bal.rep #traces폴더 안의 short1-bal.rep만 테스트
 ```
 **********************************
+
+* Buddy System은 구현하지 못함
